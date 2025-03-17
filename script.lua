@@ -1,61 +1,59 @@
--- client.lua ฝั่ง GitHub
-
+-- Roblox LocalScript
 local HttpService = game:GetService("HttpService")
+local player = game.Players.LocalPlayer
 
-local function getPlayerData()
-    local player = game.Players.LocalPlayer
+-- Hook RemoteEvent (ส่อง Remote ใน Network tab แล้วใส่ให้ถูก)
+local remote = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("StatsEvent")
 
-    -- ตรวจสอบผลไม้ใน backpack
-    local fruit = nil
-    for _, tool in pairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            fruit = tool.Name
-            break
-        end
-    end
-
-    -- เก็บข้อมูล
+-- ฟังก์ชันดึงข้อมูล
+local function getFullStats()
     local data = {
-        Status = "Online",
-        PC = tostring(player.UserId), -- หรือ Hardware ID ถ้ามี
-        Username = player.Name,
-        Type = player.AccountAge > 30 and "Main" or "Alt",
-        Level = player:FindFirstChild("Data") and player.Data.Level.Value or 0,
-        Melee = player:FindFirstChild("Data") and player.Data.Melee.Value or 0,
-        ["Devil Fruit"] = fruit or "ไม่มี",
-        ["Fruit Inventory"] = "Empty",
-        World = player:FindFirstChild("Data") and player.Data.World.Value or "Unknown",
-        Money = player.leaderstats and player.leaderstats.Beli.Value or 0,
-        Fragment = player.leaderstats and player.leaderstats.Fragment.Value or 0,
-        Race = player:FindFirstChild("Data") and player.Data.Race.Value or "Unknown",
-        Mirror = player:FindFirstChild("Data") and player.Data.Mirror.Value or 0,
-        Valkyrie = player:FindFirstChild("Data") and player.Data.Valkyrie.Value or 0,
-        Lever = player:FindFirstChild("Data") and player.Data.Lever.Value or 0,
-        ["Leviathan Heart"] = player:FindFirstChild("Data") and player.Data.LeviathanHeart.Value or 0,
-        ["Dark Fragment"] = player:FindFirstChild("Data") and player.Data.DarkFragment.Value or 0,
-        Time = os.date("%Y-%m-%d %H:%M:%S")
+        username = player.Name,
+        userId = player.UserId,
+        level = player.leaderstats and player.leaderstats.Level.Value or "N/A",
+        bounty = player.leaderstats and player.leaderstats.Bounty.Value or "N/A",
+        fruit = player:FindFirstChild("Backpack") and player.Backpack:FindFirstChildOfClass("Tool") and player.Backpack:FindFirstChildOfClass("Tool").Name or "None",
+        position = tostring(player.Character and player.Character.HumanoidRootPart.Position or Vector3.new(0,0,0)),
+        health = player.Character and player.Character.Humanoid.Health or 0,
+        maxHealth = player.Character and player.Character.Humanoid.MaxHealth or 0,
+        hwid = HttpService:GenerateGUID(false) -- Mock HWID (จริง ๆ จะใช้ module เสริมดึง hardware id จริง)
     }
-
     return data
 end
 
--- ส่ง POST ไปยัง API URL โดยตรง
-local function postDataToAPI(data)
-    local url = "https://teehid.xyz/blox-dashboard/receive.php"
+-- GUI Overlay แบบง่าย ๆ
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local frame = Instance.new("Frame", screenGui)
+frame.Size = UDim2.new(0, 300, 0, 150)
+frame.Position = UDim2.new(0, 20, 0, 50)
+frame.BackgroundTransparency = 0.3
 
-    local jsonData = HttpService:JSONEncode(data)
+local text = Instance.new("TextLabel", frame)
+text.Size = UDim2.new(1, 0, 1, 0)
+text.TextScaled = true
+text.Text = "Sending Data..."
+text.TextColor3 = Color3.new(1,1,1)
+text.BackgroundTransparency = 1
 
+-- ส่ง API
+local function sendStats()
+    local data = getFullStats()
     local success, response = pcall(function()
-        return HttpService:PostAsync(url, jsonData, Enum.HttpContentType.ApplicationJson)
+        return HttpService:PostAsync(
+            "https://teehid.xyz/blox-dashboard/collect.php",
+            HttpService:JSONEncode(data),
+            Enum.HttpContentType.ApplicationJson
+        )
     end)
-
+    
     if success then
-        print("[Client] ส่งข้อมูลสำเร็จ:", response)
+        text.Text = "Data Sent! ✅"
     else
-        warn("[Client] ส่งข้อมูลไม่สำเร็จ:", response)
+        text.Text = "Send Failed ❌"
     end
 end
 
--- ทำงาน
-local data = getPlayerData()
-postDataToAPI(data)
+-- loop ส่งข้อมูลทุก 30 วิ
+while wait(30) do
+    sendStats()
+end
