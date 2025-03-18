@@ -3,16 +3,21 @@
 -- NOTE: ยังมีบางส่วนเป็นโครง (Placeholder) ต้องใส่ Logic เพิ่มหากต้องการให้ครบ
 --------------------------------------------------------------------------------
 
--------------------
--- 1) AUTO SELECT TEAM
--------------------
-pc = game:GetService("Workspace").Map:FindFirstChild("Team".."Shop")
+--------------------------------------------------------------------------------
+-- Auto Select Team (อัตโนมัติทันที)
+--------------------------------------------------------------------------------
+
 spawn(function()
-    repeat wait() until game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ChooseTeam")
-    if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ChooseTeam") then
-        local choose = "Pirates" -- สามารถเปลี่ยนเป็น "Marines" ได้
-        game:GetService("ReplicatedStorage").Remotes:InvokeServer("SetTeam", choose)
-    end
+    -- รอจนกระทั่งหน้าต่าง ChooseTeam โผล่มาใน PlayerGui
+    repeat wait() until game:GetService("Players").LocalPlayer
+                          .PlayerGui:FindFirstChild("ChooseTeam")
+
+    -- ตั้งค่าฝั่งที่ต้องการ (Pirates หรือ Marines)
+    local choose = "Pirates" 
+    -- หรือถ้าอยากเข้าฝั่ง Marines: local choose = "Marines"
+
+    -- เรียก Remote ของเกม เพื่อเปลี่ยนทีม
+    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam", choose)
 end)
 
 -------------------
