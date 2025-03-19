@@ -4,9 +4,17 @@
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
+-- ประกาศตัวแปรที่จำเป็นก่อน
+--------------------------------------------------------------------------------
+local flyToggle = false
+local flyHeight = 20
+local flySpeed = 0.1
+local fastAttack = false
+local attackSpeed = 0.05
+
+--------------------------------------------------------------------------------
 -- Auto Select Team (อัตโนมัติทันที)
 --------------------------------------------------------------------------------
-
 spawn(function()
     -- รอจนกระทั่งหน้าต่าง ChooseTeam โผล่มาใน PlayerGui
     repeat wait() until game:GetService("Players").LocalPlayer
@@ -20,9 +28,9 @@ spawn(function()
     game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam", choose)
 end)
 
--------------------
+--------------------------------------------------------------------------------
 -- 2) ANTI-AFK + ANTI-LAG
--------------------
+--------------------------------------------------------------------------------
 spawn(function()
     game:GetService("Players").LocalPlayer.Idled:Connect(function()
         game:GetService("VirtualUser"):Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
@@ -36,15 +44,48 @@ game:GetService("Lighting").FogEnd = math.huge
 game:GetService("Lighting").GlobalShadows = false
 game:GetService("Lighting").Brightness = 0
 
--------------------
+--------------------------------------------------------------------------------
 -- 3) Kavo GUI LIBRARY (BloodTheme)
--------------------
+--------------------------------------------------------------------------------
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("TeeHid Hub | Private Build", "BloodTheme")
 
--------------------
+--------------------------------------------------------------------------------
+-- (NEW) ระบบเลือกทีมอัจฉริยะ (Pirates/Marines) + GUI
+--------------------------------------------------------------------------------
+local selectedTeam = "Pirates" -- ค่าเริ่มต้น
+local teamCheck = false
+
+local teamTab = Window:NewTab("เลือกทีม")
+local teamSection = teamTab:NewSection("ตั้งค่าฝั่งทีม")
+
+teamSection:NewDropdown("เลือกทีมเริ่มต้น", "เลือก Pirates หรือ Marines", {"Pirates", "Marines"}, function(team)
+    selectedTeam = team
+end)
+
+teamSection:NewButton("เลือกทีมทันที (Manual)", "ใช้กรณี Auto ทำงานไม่สำเร็จ", function()
+    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam", selectedTeam)
+end)
+
+spawn(function()
+    while true do
+        if not teamCheck then
+            pcall(function()
+                local teamGui = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ChooseTeam")
+                if teamGui and teamGui.Enabled then
+                    repeat wait() until teamGui.Enabled
+                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam", selectedTeam)
+                    teamCheck = true
+                end
+            end)
+        end
+        wait(1)
+    end
+end)
+
+--------------------------------------------------------------------------------
 -- 4) AUTO FARM (SIMPLE LOOP) จากโค้ดใหม่ที่ส่งมา
--------------------
+--------------------------------------------------------------------------------
 local function autoFarmSimple()
     local enemies = game:GetService("Workspace").Enemies:GetChildren()
     for i, v in pairs(enemies) do
@@ -81,21 +122,13 @@ spawn(function()
 end)
 
 --------------------------------------------------------------------------------
--- ด้านล่าง: โค้ดรวม PHASE 1-10 (ตัวเต็ม) ที่เคยรวมไปแล้ว
+-- [Phase 1: Base GUI + Anti-AFK + Anti-Lag + Auto Farm Core]
 --------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
--- [Phase 1: Base GUI + Anti-AFK + Anti-Lag + Auto Farm Core] (ของเดิม)
---------------------------------------------------------------------------------
--- หมายเหตุ: Anti-AFK + Anti-Lag ข้างบนถูกใส่แล้ว จึงข้ามส่วนที่ซ้ำ
-
--- ตัวแปรหลัก (Phase 1)
 local autoFarm = false
 local mobGather = false
 local safeMode = false
 local selectedWeapon = "Melee"
 
--- Main Tab (Phase 1)
 local mainTab = Window:NewTab("Auto Farm")
 local mainSection = mainTab:NewSection("Farm Controls")
 
@@ -115,12 +148,23 @@ mainSection:NewDropdown("เลือกอาวุธ","เลือก Melee/
     selectedWeapon = option
 end)
 
+--------------------------------------------------------------------------------
 -- Utility Tab (Phase 1)
+--------------------------------------------------------------------------------
 local utilTab = Window:NewTab("Utility")
 local utilSection = utilTab:NewSection("ระบบเสริม")
 utilSection:NewLabel("Anti-AFK & Anti-Lag เปิดใช้งานแล้ว (Phase1)")
 
--- Core Functions (Phase 1)
+--------------------------------------------------------------------------------
+-- ฟังก์ชันเก่า (Phase1)
+--------------------------------------------------------------------------------
+function mouse1click()
+    -- สมมติเป็นฟังก์ชันคลิกเมาส์ (ต้อง Implement เอง หรือใช้ VirtualUser)
+    game:GetService("VirtualUser"):Button1Down(Vector2.new(0,0))
+    wait(0.05)
+    game:GetService("VirtualUser"):Button1Up(Vector2.new(0,0))
+end
+
 function attackOldSystem()
     if selectedWeapon == "Melee" then
         mouse1click()
@@ -149,7 +193,9 @@ function gatherMobsOldSystem()
     end
 end
 
+-- แก้ safeFlyOldSystem ตามโค้ดใหม่ (เช็ค flyToggle)
 function safeFlyOldSystem()
+    if flyToggle then return end -- ไม่ทับซ้อนกับระบบบิน v2
     game.Players.LocalPlayer.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
     game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame =
         game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0,20,0)
@@ -309,7 +355,6 @@ fastSection:NewToggle("เปิด Fast Mode (Farm LV อย่างเดี�
     fastMode=state
 end)
 
--- อัปเดต questData
 questData = {
     {lv=1,   island="Start",        quest="BanditQuest1",    monster="Bandit"},
     {lv=15,  island="Jungle",       quest="JungleQuest",     monster="Monkey"},
@@ -318,7 +363,6 @@ questData = {
     {lv=700, island="Colosseum",    quest="ColosseumQuest",  monster="Gladiator"},
     {lv=1500,island="Hydra Island", quest="HydraQuest",      monster="Dragon Crew Warrior"},
     {lv=2450,island="Tiki Outpost", quest="TikiQuest",       monster="Tiki Pirate"}
-    -- ถึง 2600 สมมติ
 }
 
 --------------------------------------------------------------------------------
@@ -588,7 +632,204 @@ function autoFPSHandler()
 end
 
 --------------------------------------------------------------------------------
--- MAIN AUTO LOOP (PHASE 1-10) รวม + AutoFarmSimple แยกไว้ด้านบน
+-- (NEW) ระบบ Fast Attack (Beta)
+--------------------------------------------------------------------------------
+local combatTab = Window:NewTab("Combat")
+local combatSection = combatTab:NewSection("ตั้งค่าการโจมตี")
+
+combatSection:NewToggle("Fast Attack Mode","โจมตีเร็วพิเศษ",function(state)
+    fastAttack = state
+end)
+
+spawn(function()
+    while wait(attackSpeed) do
+        if fastAttack then
+            pcall(function()
+                game:GetService("VirtualUser"):Button1Down(Vector2.new(0,0))
+                game:GetService("VirtualUser"):Button1Up(Vector2.new(0,0))
+                -- ใช้ Remote เรียกการโจมตีโดยตรง
+                game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Attack",{
+                    ["Type"] = "Sword",
+                    ["HitPos"] = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
+                })
+            end)
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- (NEW) ระบบบินแบบลอยตัวตลอดเวลา (Safe Fly v2)
+--------------------------------------------------------------------------------
+utilSection:NewToggle("เปิดโหมดบินตลอดเวลา","ลอยตัวไม่ตก + ปลอดภัย",function(state)
+    flyToggle = state
+    if state then
+        game.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = true
+        game.Players.LocalPlayer.Character.Humanoid.PlatformStand = true
+    else
+        game.Players.LocalPlayer.Character.HumanoidRootPart.Anchored = false
+        game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
+    end
+end)
+
+spawn(function()
+    while wait(flySpeed) do
+        if flyToggle then
+            pcall(function()
+                local char = game.Players.LocalPlayer.Character
+                char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame + Vector3.new(0, flyHeight/50, 0)
+                char.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+            end)
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- Leveling System v3 (ตาม Wiki)
+--------------------------------------------------------------------------------
+local guideTab = Window:NewTab("Level Guide")
+local guideSection = guideTab:NewSection("ตัวช่วยเลเวลอัป")
+
+guideSection:NewLabel("ใช้คู่กับ Wiki Guide:")
+guideSection:NewButton("เปิด Wiki Guide","https://blox-fruits.fandom.com/wiki/Leveling_Guide",function()
+    setclipboard("https://blox-fruits.fandom.com/wiki/Leveling_Guide")
+    Library:Notification({Title="คัดลอกลิงก์แล้ว",Text="วางในเบราว์เซอร์เพื่อเปิด"})
+end)
+
+spawn(function()
+    while wait(5) do
+        guideSection:NewLabel("Level ปัจจุบัน: "..game.Players.LocalPlayer.Data.Level.Value)
+    end
+end)
+
+local levelGuide = {
+    { -- 1-15
+        lv = {1,15},
+        island = "Jungle",
+        quest = "JungleQuest",
+        npc = "QuestGiver",
+        mob = "Monkey",
+        required = nil
+    },
+    { -- 15-30
+        lv = {15,30},
+        island = "Pirate Village",
+        quest = "BuggyQuest1",
+        npc = "BuggyQuestGiver",
+        mob = "Pirate",
+        required = nil
+    },
+    { -- 30-60
+        lv = {30,60},
+        island = "Desert",
+        quest = "DesertQuest",
+        npc = "DesertQuestGiver",
+        mob = "Desert Bandit",
+        required = nil
+    },
+    { -- 60-90
+        lv = {60,90},
+        island = "Snow Mountain",
+        quest = "SnowQuest",
+        npc = "SnowQuestGiver",
+        mob = "Snow Bandit",
+        required = {"Desert Artifact"}
+    },
+    -- เพิ่มตาม Guide จนถึง Lv 2450
+    { -- 2450+
+        lv = {2450,9999},
+        island = "Tiki Outpost",
+        quest = "TikiQuest",
+        npc = "TikiQuestGiver",
+        mob = "Tiki Warrior",
+        required = {"God's Chalice"}
+    }
+}
+
+local npcPositions = {
+    ["JungleQuestGiver"] = CFrame.new(-1213.79, 12.47, 488.11),
+    ["BuggyQuestGiver"]  = CFrame.new(-1141.11, 4.75, 3831.34),
+    ["DesertQuestGiver"] = CFrame.new(894.93, 5.44, 4392.03),
+    -- เพิ่มตำแหน่ง NPC อื่น ๆ ที่ต้องการ
+}
+
+function autoQuestV2()
+    local plrLevel = game.Players.LocalPlayer.Data.Level.Value
+    for _,guide in pairs(levelGuide) do
+        if plrLevel >= guide.lv[1] and plrLevel <= guide.lv[2] then
+            -- ตรวจสอบไอเทมที่ต้องการ
+            if guide.required then
+                if not checkItems(guide.required) then
+                    Library:Notification({Title="ต้องการไอเทม",Text=table.concat(guide.required, ", ")})
+                    return
+                end
+            end
+            -- ไปหาตัว NPC
+            teleportToNPC(guide.npc)
+            -- เริ่ม Quest
+            if not game:GetService("Players").LocalPlayer.PlayerGui.Main.Quest.Visible then
+                game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(
+                    "StartQuest",
+                    guide.quest,
+                    1
+                )
+            end
+            -- ฟาร์มมอนเตอร์
+            killAuraV2(guide.mob)
+            return
+        end
+    end
+end
+
+function teleportToNPC(npcName)
+    if npcPositions[npcName] then
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = npcPositions[npcName]
+    end
+end
+
+function checkItems(items)
+    local backpack = game:GetService("Players").LocalPlayer.Backpack:GetChildren()
+    for _,itemName in pairs(items) do
+        local found = false
+        for _,item in pairs(backpack) do
+            if item.Name == itemName then
+                found = true
+                break
+            end
+        end
+        if not found then return false end
+    end
+    return true
+end
+
+function killAuraV2(mobName)
+    for _,v in pairs(game:GetService("Workspace").Enemies:GetChildren()) do
+        if v.Name == mobName and v:FindFirstChild("Humanoid") then
+            if v.Humanoid.Health > 0 then
+                if fastAttack then
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = v.HumanoidRootPart.CFrame
+                    game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Attack",{
+                        ["Type"] = "Sword",
+                        ["HitPos"] = v.HumanoidRootPart.Position
+                    })
+                else
+                    attackOldSystem()
+                end
+            end
+        end
+    end
+end
+
+-- อัปเดต Main Loop สำหรับระบบ Auto Quest V2
+spawn(function()
+    while wait(0.5) do
+        if autoFarm then
+            autoQuestV2()
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- MAIN AUTO LOOP (PHASE 1-10)
 --------------------------------------------------------------------------------
 spawn(function()
     while wait() do
@@ -659,8 +900,8 @@ spawn(function()
 end)
 
 --------------------------------------------------------------------------------
--- แปะ Footer Tab
+-- Footer Tab
 --------------------------------------------------------------------------------
-Window:NewTab("TeeHid Hub"):NewSection("Private Build | Phase1-10 + AutoTeam + SimpleFarm")
+Window:NewTab("TeeHid Hub"):NewSection("Private Build | Phase1-10 + AutoTeam + SimpleFarm + SafeFly v2 + FastAttack + LvlSystemV3")
 
-print("[TeeHid Hub] Final Complete Build Loaded with Auto Team Selector + All Phase (1-10)!")
+print("[TeeHid Hub] Final Complete Build Loaded with All Systems!")
